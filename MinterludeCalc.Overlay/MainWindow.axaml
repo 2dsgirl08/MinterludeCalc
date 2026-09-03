@@ -1,0 +1,114 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:MinterludeCalc.Overlay.ViewModels"
+        x:Class="MinterludeCalc.Overlay.MainWindow"
+        x:DataType="vm:MainViewModel"
+        Title="MinterludeCalc Overlay"
+        Width="320" Height="600"
+        CanResize="False"
+        SystemDecorations="BorderOnly"
+        Topmost="True"
+        Background="#DD101014"
+        TransparencyLevelHint="Transparent,AcrylicBlur"
+        WindowStartupLocation="Manual"
+        Position="40,40">
+
+    <Window.Styles>
+        <Style Selector="TextBlock.section">
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Foreground" Value="#AAAAAA" />
+            <Setter Property="Margin" Value="0,10,0,4" />
+        </Style>
+        <Style Selector="TextBlock.skillsetName">
+            <Setter Property="Foreground" Value="#DDDDDD" />
+            <Setter Property="FontSize" Value="12" />
+        </Style>
+        <Style Selector="TextBlock.skillsetValue">
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="FontSize" Value="12" />
+        </Style>
+    </Window.Styles>
+
+    <Grid RowDefinitions="Auto,*" Margin="12">
+
+        <!-- Header -->
+        <StackPanel Grid.Row="0">
+            <TextBlock Text="MinterludeCalc" FontWeight="Bold" FontSize="16" Foreground="White" />
+            <TextBlock Text="{Binding StatusText}" Foreground="#FFAA55" FontSize="11"
+                       IsVisible="{Binding !IsAttached}" Margin="0,2,0,0" TextWrapping="Wrap" />
+            <!-- Attached, but not currently reading cleanly - say so instead of
+                 silently leaving the last song on screen. -->
+            <TextBlock Text="{Binding SyncStatusText}" Foreground="#FFAA55" FontSize="11"
+                       IsVisible="{Binding HasSyncStatus}" Margin="0,2,0,0" TextWrapping="Wrap" />
+        </StackPanel>
+
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <StackPanel IsVisible="{Binding IsAttached}">
+
+                <!-- Current chart -->
+                <TextBlock Text="{Binding ChartTitle}" FontWeight="Bold" FontSize="14"
+                           Foreground="White" TextWrapping="Wrap" Margin="0,8,0,0" />
+                <TextBlock Text="{Binding ChartSubtitle}" FontSize="11" Foreground="#999999" TextWrapping="Wrap" />
+
+                <TextBlock Classes="section" Text="DIFFICULTY (95% SC J4)" />
+                <TextBlock Text="{Binding DifficultyStatusText}" FontSize="10" Foreground="#777777"
+                           IsVisible="{Binding HasDifficultyStatus}" Margin="0,0,0,4" TextWrapping="Wrap" />
+                <ItemsControl ItemsSource="{Binding Difficulty}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:SkillsetRow">
+                            <Grid ColumnDefinitions="*,Auto" Margin="0,1">
+                                <TextBlock Grid.Column="0" Classes="skillsetName" Text="{Binding Name}" />
+                                <TextBlock Grid.Column="1" Classes="skillsetValue" Text="{Binding DisplayValue}" Foreground="{Binding Color}" />
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <!-- Player rating -->
+                <TextBlock Classes="section" Text="PLAYER RATING" />
+                <Grid ColumnDefinitions="*,Auto">
+                    <TextBlock Grid.Column="0" Text="Overall" Foreground="White" FontWeight="Bold" FontSize="13" />
+                    <TextBlock Grid.Column="1" Text="{Binding PlayerRatingOverall, StringFormat={}{0:F2}}"
+                               Foreground="White" FontWeight="Bold" FontSize="13" />
+                </Grid>
+                <TextBlock Text="{Binding RatingProgressText}" FontSize="10" Foreground="#777777"
+                           IsVisible="{Binding IsComputingRating}" Margin="0,2,0,4" />
+
+                <ItemsControl ItemsSource="{Binding PlayerRatingSkillsets}" Margin="0,4,0,0">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:SkillsetRow">
+                            <Grid ColumnDefinitions="*,Auto" Margin="0,1">
+                                <TextBlock Grid.Column="0" Classes="skillsetName" Text="{Binding Name}" />
+                                <TextBlock Grid.Column="1" Classes="skillsetValue" Text="{Binding DisplayValue}" Foreground="{Binding Color}" />
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <!-- New play toast -->
+                <Border IsVisible="{Binding HasNewPlay}"
+                        Background="#22FFFFFF" CornerRadius="6" Padding="10" Margin="0,14,0,0">
+                    <StackPanel>
+                        <Grid ColumnDefinitions="*,Auto">
+                            <TextBlock Grid.Column="0" Text="New play!" FontWeight="Bold" Foreground="#FFD54F" />
+                            <Button Grid.Column="1" Content="x" Padding="6,0" Click="OnDismissNewPlay" />
+                        </Grid>
+                        <TextBlock Text="{Binding NewPlayAccuracyText}" Foreground="White" Margin="0,2,0,6" />
+                        <ItemsControl ItemsSource="{Binding NewPlaySsr}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:SkillsetRow">
+                                    <Grid ColumnDefinitions="*,Auto" Margin="0,1">
+                                        <TextBlock Grid.Column="0" Classes="skillsetName" Text="{Binding Name}" />
+                                        <TextBlock Grid.Column="1" Classes="skillsetValue" Text="{Binding DisplayValue}" Foreground="{Binding Color}" />
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</Window>
