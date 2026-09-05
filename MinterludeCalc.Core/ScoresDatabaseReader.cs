@@ -12,6 +12,9 @@ namespace MinterludeCalc
         public float Rate { get; set; }
         public int Keys { get; set; }
         public bool IsFailed { get; set; }
+
+        /// <summary>Raw ModState JSON as stored by Interlude, e.g. "{}" or "{\"mirror\":0}". See ScoreMods.</summary>
+        public string Mods { get; set; } = "{}";
     }
 
     /// <summary>
@@ -46,7 +49,7 @@ namespace MinterludeCalc
             using var connection = OpenConnection();
             using var command = connection.CreateCommand();
             command.CommandText =
-                "SELECT Id, ChartId, Timestamp, Replay, Rate, Keys, IsFailed FROM scores WHERE ChartId = @chartId;";
+                "SELECT Id, ChartId, Timestamp, Replay, Rate, Keys, IsFailed, Mods FROM scores WHERE ChartId = @chartId;";
             command.Parameters.AddWithValue("@chartId", chartId);
 
             return ReadAll(command);
@@ -57,9 +60,53 @@ namespace MinterludeCalc
         {
             using var connection = OpenConnection();
             using var command = connection.CreateCommand();
-            command.CommandText = "SELECT Id, ChartId, Timestamp, Replay, Rate, Keys, IsFailed FROM scores;";
+            command.CommandText = "SELECT Id, ChartId, Timestamp, Replay, Rate, Keys, IsFailed, Mods FROM scores;";
 
             return ReadAll(command);
+        }
+
+        /// <summary>
+        /// Every score, without its replay - the blobs are by far the biggest
+        /// part of the table and are only needed for plays that actually have to
+        /// be rescored. Records come back with an empty ReplayBlob; fetch the
+        /// ones you need individually with <see cref="GetScoreById"/>.
+        /// </summary>
+        public List<ScoreRecord> GetScoreIndex()
+        {
+            using var connection = OpenConnection();
+            using var command = connection.CreateCommand();
+            command.CommandText = "SELECT Id, ChartId, Timestamp, Rate, Keys, IsFailed, Mods FROM scores;";
+
+            var results = new List<ScoreRecord>();
+
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                results.Add(new ScoreRecord
+                {
+                    Id = reader.GetInt64(0),
+                    ChartId = reader.GetString(1),
+                    Timestamp = reader.GetInt64(2),
+                    Rate = reader.GetFloat(3),
+                    Keys = reader.GetInt32(4),
+                    IsFailed = reader.GetInt32(5) != 0,
+                    Mods = reader.GetString(6)
+                });
+            }
+
+            return results;
+        }
+
+        /// <summary>One score, replay included.</summary>
+        public ScoreRecord? GetScoreById(long id)
+        {
+            using var connection = OpenConnection();
+            using var command = connection.CreateCommand();
+            command.CommandText =
+                "SELECT Id, ChartId, Timestamp, Replay, Rate, Keys, IsFailed, Mods FROM scores WHERE Id = @id;";
+            command.Parameters.AddWithValue("@id", id);
+
+            return ReadAll(command).FirstOrDefault();
         }
 
         /// <summary>The single most recent score by Id - used to detect "you just got a new play".</summary>
@@ -68,7 +115,7 @@ namespace MinterludeCalc
             using var connection = OpenConnection();
             using var command = connection.CreateCommand();
             command.CommandText =
-                "SELECT Id, ChartId, Timestamp, Replay, Rate, Keys, IsFailed FROM scores ORDER BY Id DESC LIMIT 1;";
+                "SELECT Id, ChartId, Timestamp, Replay, Rate, Keys, IsFailed, Mods FROM scores ORDER BY Id DESC LIMIT 1;";
 
             return ReadAll(command).FirstOrDefault();
         }
@@ -99,7 +146,8 @@ namespace MinterludeCalc
                     ReplayBlob = (byte[])reader[3],
                     Rate = reader.GetFloat(4),
                     Keys = reader.GetInt32(5),
-                    IsFailed = reader.GetInt32(6) != 0
+                    IsFailed = reader.GetInt32(6) != 0,
+                    Mods = reader.GetString(7)
                 });
             }
 

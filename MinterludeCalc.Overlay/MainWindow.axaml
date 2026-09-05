@@ -4,9 +4,9 @@
         x:Class="MinterludeCalc.Overlay.MainWindow"
         x:DataType="vm:MainViewModel"
         Title="MinterludeCalc Overlay"
-        Width="320" Height="600"
+        Width="340" Height="640"
         CanResize="False"
-        SystemDecorations="BorderOnly"
+        SystemDecorations="None"
         Topmost="True"
         Background="#DD101014"
         TransparencyLevelHint="Transparent,AcrylicBlur"
@@ -28,85 +28,295 @@
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="FontSize" Value="12" />
         </Style>
+        <Style Selector="TextBlock.axis">
+            <Setter Property="Foreground" Value="#888888" />
+            <Setter Property="FontSize" Value="9" />
+            <Setter Property="HorizontalAlignment" Value="Right" />
+        </Style>
+        <Style Selector="TextBlock.hint">
+            <Setter Property="Foreground" Value="#777777" />
+            <Setter Property="FontSize" Value="10" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+
+        <!-- Window buttons: flat, no chrome until hovered. -->
+        <Style Selector="Button.window">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="#AAAAAA" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Width" Value="26" />
+            <Setter Property="Height" Value="22" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button.window:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="#33FFFFFF" />
+            <Setter Property="TextBlock.Foreground" Value="White" />
+        </Style>
+        <Style Selector="Button.close:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="#CCE81123" />
+            <Setter Property="TextBlock.Foreground" Value="White" />
+        </Style>
+
+        <!-- Tab strip. The active tab is the disabled one, which greys it out
+             without needing a converter or a second set of bindings. -->
+        <Style Selector="Button.tab">
+            <Setter Property="Background" Value="#22FFFFFF" />
+            <Setter Property="Foreground" Value="#DDDDDD" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Padding" Value="0,4" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+        </Style>
+        <Style Selector="Button.tab:disabled /template/ ContentPresenter">
+            <Setter Property="Background" Value="#55FFD54F" />
+            <Setter Property="TextBlock.Foreground" Value="White" />
+        </Style>
     </Window.Styles>
 
-    <Grid RowDefinitions="Auto,*" Margin="12">
+    <Grid RowDefinitions="Auto,Auto,*">
 
-        <!-- Header -->
-        <StackPanel Grid.Row="0">
-            <TextBlock Text="MinterludeCalc" FontWeight="Bold" FontSize="16" Foreground="White" />
+        <!-- Title bar: the whole strip is the drag handle. -->
+        <Border Grid.Row="0" Background="#22FFFFFF" PointerPressed="OnTitleBarPressed">
+            <Grid ColumnDefinitions="*,Auto,Auto" Height="26">
+                <TextBlock Grid.Column="0" Text="MinterludeCalc" FontWeight="Bold" FontSize="12"
+                           Foreground="White" VerticalAlignment="Center" Margin="10,0,0,0" />
+                <Button Grid.Column="1" Classes="window" Content="&#x2013;" ToolTip.Tip="Minimize" Click="OnMinimize" />
+                <Button Grid.Column="2" Classes="window close" Content="&#x2715;" ToolTip.Tip="Close" Click="OnClose" />
+            </Grid>
+        </Border>
+
+        <!-- Status + profile + tabs -->
+        <StackPanel Grid.Row="1" Margin="12,8,12,0">
             <TextBlock Text="{Binding StatusText}" Foreground="#FFAA55" FontSize="11"
-                       IsVisible="{Binding !IsAttached}" Margin="0,2,0,0" TextWrapping="Wrap" />
+                       IsVisible="{Binding !IsAttached}" Margin="0,0,0,4" TextWrapping="Wrap" />
             <!-- Attached, but not currently reading cleanly - say so instead of
                  silently leaving the last song on screen. -->
             <TextBlock Text="{Binding SyncStatusText}" Foreground="#FFAA55" FontSize="11"
-                       IsVisible="{Binding HasSyncStatus}" Margin="0,2,0,0" TextWrapping="Wrap" />
+                       IsVisible="{Binding HasSyncStatus}" Margin="0,0,0,4" TextWrapping="Wrap" />
+
+            <Grid ColumnDefinitions="Auto,*" Margin="0,0,0,6">
+                <TextBlock Grid.Column="0" Text="Profile" Classes="skillsetName" VerticalAlignment="Center" Margin="0,0,8,0" />
+                <ComboBox Grid.Column="1" HorizontalAlignment="Stretch" FontSize="11"
+                          ItemsSource="{Binding ProfileOptions}"
+                          SelectedItem="{Binding SelectedProfile, Mode=TwoWay}">
+                    <ComboBox.ItemTemplate>
+                        <DataTemplate x:DataType="vm:ProfileItem">
+                            <TextBlock Text="{Binding Name}" />
+                        </DataTemplate>
+                    </ComboBox.ItemTemplate>
+                </ComboBox>
+            </Grid>
+
+            <Grid ColumnDefinitions="*,Auto,Auto" Margin="0,0,0,4">
+                <TextBox Grid.Column="0" FontSize="11" Watermark="New profile name"
+                         Text="{Binding NewProfileName, Mode=TwoWay}" />
+                <Button Grid.Column="1" Content="+" FontSize="12" Padding="8,0" Margin="4,0,0,0"
+                        ToolTip.Tip="Create profile and switch to it" Click="OnCreateProfile" />
+                <Button Grid.Column="2" Content="&#x2715;" FontSize="10" Padding="8,0" Margin="4,0,0,0"
+                        ToolTip.Tip="Delete the selected profile"
+                        IsEnabled="{Binding CanDeleteProfile}" Click="OnDeleteProfile" />
+            </Grid>
+
+            <TextBlock Text="{Binding ProfileStatusText}" Classes="hint"
+                       IsVisible="{Binding HasProfileStatus}" Margin="0,0,0,4" />
+
+            <Grid ColumnDefinitions="*,*,*,*" Margin="0,4,0,0">
+                <Button Grid.Column="0" Classes="tab" Content="Now"    Tag="Now"    IsEnabled="{Binding !ShowNow}"    Click="OnSelectTab" />
+                <Button Grid.Column="1" Classes="tab" Content="Scores" Tag="Scores" IsEnabled="{Binding !ShowScores}" Click="OnSelectTab" />
+                <Button Grid.Column="2" Classes="tab" Content="Top"    Tag="Top"    IsEnabled="{Binding !ShowTop}"    Click="OnSelectTab" />
+                <Button Grid.Column="3" Classes="tab" Content="Graph"  Tag="Graph"  IsEnabled="{Binding !ShowGraph}"  Click="OnSelectTab" />
+            </Grid>
+
+            <TextBlock Text="{Binding RatingProgressText}" Classes="hint"
+                       IsVisible="{Binding IsComputingRating}" Margin="0,4,0,0" />
         </StackPanel>
 
-        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+        <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" Margin="12,0,12,12">
             <StackPanel IsVisible="{Binding IsAttached}">
 
-                <!-- Current chart -->
-                <TextBlock Text="{Binding ChartTitle}" FontWeight="Bold" FontSize="14"
-                           Foreground="White" TextWrapping="Wrap" Margin="0,8,0,0" />
-                <TextBlock Text="{Binding ChartSubtitle}" FontSize="11" Foreground="#999999" TextWrapping="Wrap" />
+                <!-- ============================ NOW ============================ -->
+                <StackPanel IsVisible="{Binding ShowNow}">
+                    <TextBlock Text="{Binding ChartTitle}" FontWeight="Bold" FontSize="14"
+                               Foreground="White" TextWrapping="Wrap" Margin="0,8,0,0" />
+                    <TextBlock Text="{Binding ChartSubtitle}" FontSize="11" Foreground="#999999" TextWrapping="Wrap" />
 
-                <TextBlock Classes="section" Text="DIFFICULTY (95% SC J4)" />
-                <TextBlock Text="{Binding DifficultyStatusText}" FontSize="10" Foreground="#777777"
-                           IsVisible="{Binding HasDifficultyStatus}" Margin="0,0,0,4" TextWrapping="Wrap" />
-                <ItemsControl ItemsSource="{Binding Difficulty}">
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate x:DataType="vm:SkillsetRow">
-                            <Grid ColumnDefinitions="*,Auto" Margin="0,1">
-                                <TextBlock Grid.Column="0" Classes="skillsetName" Text="{Binding Name}" />
-                                <TextBlock Grid.Column="1" Classes="skillsetValue" Text="{Binding DisplayValue}" Foreground="{Binding Color}" />
+                    <TextBlock Classes="section" Text="DIFFICULTY (95% SC J4)" />
+                    <TextBlock Text="{Binding DifficultyStatusText}" Classes="hint"
+                               IsVisible="{Binding HasDifficultyStatus}" Margin="0,0,0,4" />
+                    <ItemsControl ItemsSource="{Binding Difficulty}" Opacity="{Binding DifficultyOpacity}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:SkillsetRow">
+                                <Grid ColumnDefinitions="*,Auto" Margin="0,1">
+                                    <TextBlock Grid.Column="0" Classes="skillsetName" Text="{Binding Name}" />
+                                    <TextBlock Grid.Column="1" Classes="skillsetValue" Text="{Binding DisplayValue}" Foreground="{Binding Color}" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <TextBlock Classes="section" Text="PLAYER RATING" />
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock Grid.Column="0" Text="Overall" Foreground="White" FontWeight="Bold" FontSize="13" />
+                        <TextBlock Grid.Column="1" Text="{Binding PlayerRatingOverall, StringFormat={}{0:F2}}"
+                                   Foreground="White" FontWeight="Bold" FontSize="13" />
+                    </Grid>
+
+                    <ItemsControl ItemsSource="{Binding PlayerRatingSkillsets}" Margin="0,4,0,0">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:SkillsetRow">
+                                <Grid ColumnDefinitions="*,Auto" Margin="0,1">
+                                    <TextBlock Grid.Column="0" Classes="skillsetName" Text="{Binding Name}" />
+                                    <TextBlock Grid.Column="1" Classes="skillsetValue" Text="{Binding DisplayValue}" Foreground="{Binding Color}" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <!-- New play toast -->
+                    <Border IsVisible="{Binding HasNewPlay}"
+                            Background="#22FFFFFF" CornerRadius="6" Padding="10" Margin="0,14,0,0">
+                        <StackPanel>
+                            <Grid ColumnDefinitions="*,Auto">
+                                <TextBlock Grid.Column="0" Text="New play!" FontWeight="Bold" Foreground="#FFD54F" />
+                                <Button Grid.Column="1" Content="x" Padding="6,0" Click="OnDismissNewPlay" />
                             </Grid>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
+                            <TextBlock Text="{Binding NewPlayAccuracyText}" Foreground="White" Margin="0,2,0,0" />
+                            <TextBlock Text="{Binding NewPlayRatingText}" Classes="hint" Margin="0,0,0,6" />
+                            <ItemsControl ItemsSource="{Binding NewPlaySsr}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:SkillsetRow">
+                                        <Grid ColumnDefinitions="*,Auto" Margin="0,1">
+                                            <TextBlock Grid.Column="0" Classes="skillsetName" Text="{Binding Name}" />
+                                            <TextBlock Grid.Column="1" Classes="skillsetValue" Text="{Binding DisplayValue}" Foreground="{Binding Color}" />
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
 
-                <!-- Player rating -->
-                <TextBlock Classes="section" Text="PLAYER RATING" />
-                <Grid ColumnDefinitions="*,Auto">
-                    <TextBlock Grid.Column="0" Text="Overall" Foreground="White" FontWeight="Bold" FontSize="13" />
-                    <TextBlock Grid.Column="1" Text="{Binding PlayerRatingOverall, StringFormat={}{0:F2}}"
-                               Foreground="White" FontWeight="Bold" FontSize="13" />
-                </Grid>
-                <TextBlock Text="{Binding RatingProgressText}" FontSize="10" Foreground="#777777"
-                           IsVisible="{Binding IsComputingRating}" Margin="0,2,0,4" />
+                <!-- =========================== SCORES =========================== -->
+                <StackPanel IsVisible="{Binding ShowScores}">
+                    <TextBlock Classes="section" Text="YOUR PLAYS ON THIS CHART" />
+                    <TextBlock Text="{Binding ChartTitle}" FontSize="11" Foreground="#999999" TextWrapping="Wrap" Margin="0,0,0,6" />
+                    <TextBlock Text="{Binding ChartScoresEmptyText}" Classes="hint"
+                               IsVisible="{Binding HasChartScoresEmptyText}" />
 
-                <ItemsControl ItemsSource="{Binding PlayerRatingSkillsets}" Margin="0,4,0,0">
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate x:DataType="vm:SkillsetRow">
-                            <Grid ColumnDefinitions="*,Auto" Margin="0,1">
-                                <TextBlock Grid.Column="0" Classes="skillsetName" Text="{Binding Name}" />
-                                <TextBlock Grid.Column="1" Classes="skillsetValue" Text="{Binding DisplayValue}" Foreground="{Binding Color}" />
-                            </Grid>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
-
-                <!-- New play toast -->
-                <Border IsVisible="{Binding HasNewPlay}"
-                        Background="#22FFFFFF" CornerRadius="6" Padding="10" Margin="0,14,0,0">
-                    <StackPanel>
-                        <Grid ColumnDefinitions="*,Auto">
-                            <TextBlock Grid.Column="0" Text="New play!" FontWeight="Bold" Foreground="#FFD54F" />
-                            <Button Grid.Column="1" Content="x" Padding="6,0" Click="OnDismissNewPlay" />
-                        </Grid>
-                        <TextBlock Text="{Binding NewPlayAccuracyText}" Foreground="White" Margin="0,2,0,6" />
-                        <ItemsControl ItemsSource="{Binding NewPlaySsr}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate x:DataType="vm:SkillsetRow">
-                                    <Grid ColumnDefinitions="*,Auto" Margin="0,1">
-                                        <TextBlock Grid.Column="0" Classes="skillsetName" Text="{Binding Name}" />
-                                        <TextBlock Grid.Column="1" Classes="skillsetValue" Text="{Binding DisplayValue}" Foreground="{Binding Color}" />
+                    <ItemsControl ItemsSource="{Binding ChartScores}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:ScoreRow">
+                                <Border Background="#14FFFFFF" CornerRadius="4" Padding="8,5" Margin="0,0,0,4">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <StackPanel Grid.Column="0">
+                                            <TextBlock Text="{Binding AccuracyText}" Foreground="White" FontWeight="SemiBold" FontSize="12" />
+                                            <TextBlock Text="{Binding Subtitle}" Classes="hint" />
+                                        </StackPanel>
+                                        <TextBlock Grid.Column="1" Text="{Binding RatingText}" Foreground="{Binding RatingColor}"
+                                                   FontWeight="Bold" FontSize="14" VerticalAlignment="Center" Margin="8,0,0,0" />
                                     </Grid>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+
+                <!-- =========================== TOP PLAYS ======================== -->
+                <StackPanel IsVisible="{Binding ShowTop}">
+                    <TextBlock Classes="section" Text="TOP PLAYS" />
+                    <ComboBox HorizontalAlignment="Stretch" FontSize="11" Margin="0,0,0,6"
+                              ItemsSource="{Binding SkillsetOptions}"
+                              SelectedItem="{Binding SelectedSkillset, Mode=TwoWay}" />
+
+                    <TextBlock Text="{Binding TopPlaysEmptyText}" Classes="hint"
+                               IsVisible="{Binding HasTopPlaysEmptyText}" />
+
+                    <ItemsControl ItemsSource="{Binding TopPlays}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:ScoreRow">
+                                <Border Background="#14FFFFFF" CornerRadius="4" Padding="8,5" Margin="0,0,0,4">
+                                    <Grid ColumnDefinitions="Auto,*,Auto">
+                                        <TextBlock Grid.Column="0" Text="{Binding RankText}" Classes="hint"
+                                                   VerticalAlignment="Center" Width="24" />
+                                        <StackPanel Grid.Column="1">
+                                            <TextBlock Text="{Binding Title}" Foreground="White" FontSize="12"
+                                                       TextTrimming="CharacterEllipsis" MaxLines="1" />
+                                            <TextBlock Text="{Binding Subtitle}" Classes="hint" />
+                                            <TextBlock Text="{Binding AccuracyText}" Classes="hint" />
+                                        </StackPanel>
+                                        <TextBlock Grid.Column="2" Text="{Binding RatingText}" Foreground="{Binding RatingColor}"
+                                                   FontWeight="Bold" FontSize="14" VerticalAlignment="Center" Margin="8,0,0,0" />
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+
+                <!-- ============================ GRAPH =========================== -->
+                <StackPanel IsVisible="{Binding ShowGraph}">
+                    <TextBlock Classes="section" Text="RATING OVER TIME" />
+
+                    <StackPanel IsVisible="{Binding HasGraph}">
+                        <Grid ColumnDefinitions="Auto,Auto">
+
+                            <!-- Value axis. The gridlines are evenly spaced by
+                                 construction, so both the lines and these labels
+                                 are laid out by the Grid rather than positioned
+                                 with computed pixel offsets. -->
+                            <Grid Grid.Column="0" Width="32" Height="140" RowDefinitions="*,*,*,*" Margin="0,0,4,0">
+                                <TextBlock Grid.Row="0" Classes="axis" Text="{Binding GraphLabel0}" VerticalAlignment="Top" />
+                                <TextBlock Grid.Row="1" Classes="axis" Text="{Binding GraphLabel1}" VerticalAlignment="Top" />
+                                <TextBlock Grid.Row="2" Classes="axis" Text="{Binding GraphLabel2}" VerticalAlignment="Top" />
+                                <TextBlock Grid.Row="3" Classes="axis" Text="{Binding GraphLabel3}" VerticalAlignment="Top" />
+                                <TextBlock Grid.Row="3" Classes="axis" Text="{Binding GraphLabel4}" VerticalAlignment="Bottom" />
+                            </Grid>
+
+                            <Grid Grid.Column="1" Width="268" Height="140">
+                                <Grid RowDefinitions="*,*,*,*">
+                                    <Border Grid.Row="0" BorderBrush="#1AFFFFFF" BorderThickness="0,1,0,0" />
+                                    <Border Grid.Row="1" BorderBrush="#1AFFFFFF" BorderThickness="0,1,0,0" />
+                                    <Border Grid.Row="2" BorderBrush="#1AFFFFFF" BorderThickness="0,1,0,0" />
+                                    <Border Grid.Row="3" BorderBrush="#1AFFFFFF" BorderThickness="0,1,0,1" />
+                                </Grid>
+
+                                <!-- Background="Transparent" is what makes the
+                                     canvas hit-testable; without it the pointer
+                                     falls straight through to the panel. -->
+                                <Canvas Width="268" Height="140" ClipToBounds="True" Background="Transparent"
+                                        PointerMoved="OnGraphPointerMoved"
+                                        PointerExited="OnGraphPointerExited">
+                                    <Polygon Points="{Binding GraphAreaPoints}" Fill="#26FFD54F" />
+                                    <Polyline Points="{Binding GraphPoints}" Stroke="#FFD54F" StrokeThickness="1.5"
+                                              StrokeJoin="Round" StrokeLineCap="Round" />
+
+                                    <Rectangle IsVisible="{Binding HasHover}" Width="1" Height="140" Fill="#66FFFFFF"
+                                               Canvas.Top="0" Canvas.Left="{Binding HoverLineLeft}" />
+                                    <Ellipse IsVisible="{Binding HasHover}" Fill="White" Stroke="#FFD54F" StrokeThickness="1"
+                                             Width="{Binding HoverDotSize}" Height="{Binding HoverDotSize}"
+                                             Canvas.Left="{Binding HoverDotLeft}" Canvas.Top="{Binding HoverDotTop}" />
+                                </Canvas>
+                            </Grid>
+                        </Grid>
+
+                        <Grid ColumnDefinitions="*,*" Margin="36,2,0,0">
+                            <TextBlock Grid.Column="0" Classes="axis" Text="{Binding GraphStartLabel}" HorizontalAlignment="Left" />
+                            <TextBlock Grid.Column="1" Classes="axis" Text="{Binding GraphEndLabel}" HorizontalAlignment="Right" />
+                        </Grid>
+
+                        <Border Background="#14FFFFFF" CornerRadius="4" Padding="8,5" Margin="0,8,0,0">
+                            <TextBlock Text="{Binding GraphReadoutText}" Foreground="White" FontSize="12" FontWeight="SemiBold" />
+                        </Border>
                     </StackPanel>
-                </Border>
+
+                    <TextBlock Text="{Binding GraphSummary}" Classes="hint" Margin="0,6,0,0" />
+                    <TextBlock Classes="hint" Margin="0,6,0,0"
+                               Text="Your player rating recomputed after each play, oldest to newest. Hover the curve to read a point." />
+                </StackPanel>
 
             </StackPanel>
         </ScrollViewer>

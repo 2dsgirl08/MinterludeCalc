@@ -41,6 +41,33 @@ namespace MinterludeCalc
             Notes = notes;
         }
 
+        /// <summary>
+        /// The chart as it's actually presented to the player under the
+        /// "mirror" mod: column i swapped with column (Keys - 1 - i) on every
+        /// row, matching Prelude's Mirror.apply (`Array.rev` per row). Scores
+        /// recorded with mirror on have to be scored/rated against this, not
+        /// the raw chart, or every column comparison is off. Returns a new
+        /// instance - the original is never mutated, since GetChartNoteData
+        /// may hand the same decoded chart to other, non-mirrored callers.
+        /// </summary>
+        public ChartNoteData Mirror()
+        {
+            var mirrored = new ChartNoteRow[Notes.Length];
+
+            for (int i = 0; i < Notes.Length; i++)
+            {
+                var source = Notes[i].Columns;
+                var reversed = new byte[Keys];
+
+                for (int column = 0; column < Keys; column++)
+                    reversed[column] = source[Keys - 1 - column];
+
+                mirrored[i] = new ChartNoteRow(Notes[i].TimeMs, reversed);
+            }
+
+            return new ChartNoteData(Keys, mirrored);
+        }
+
         // =====================================================================
         // Binary format (written by Prelude's Chart.WriteToStreamHeadless):
         //

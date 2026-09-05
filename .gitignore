@@ -1,4 +1,77 @@
-Debug/
-Release/
+# Build output
+
 bin/
 obj/
+Debug/
+Release/
+
+# IDE / editor
+
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# OS files
+
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+
+*.log
+logs/
+
+# Local configuration / secrets
+
+.env
+.env.*
+*.local
+appsettings.Local.json
+appsettings.Development.json
+
+# Certificates / keys
+
+*.pfx
+*.p12
+*.pem
+*.key
+*.crt
+
+# Temporary files
+
+*.tmp
+*.temp
+*.bak
+*.swp
+*~
+
+# Test / coverage output
+
+TestResults/
+coverage/
+*.coverage
+*.coveragexml
+
+# NuGet
+
+packages/
+*.nupkg
+*.snupkg
+
+# Generated files
+
+Generated/
+artifacts/
+
+# User-specific application data
+
+*.sqlite
+*.db
+*.db-shm
+*.db-wal
+*.json.bak

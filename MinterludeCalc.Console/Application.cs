@@ -5,7 +5,7 @@ namespace MinterludeCalc
 {
     public class Application
     {
-        private readonly OverlayService _overlay = new("Tools/msd.exe");
+        private readonly OverlayService _overlay = new(MinaCalc.DefaultToolPath());
 
         private PlayerRatingResult? _playerRating;
         private volatile bool _ratingComputeInProgress;

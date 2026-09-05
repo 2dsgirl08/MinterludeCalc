@@ -3,7 +3,12 @@ using System.Text.Json;
 
 namespace MinterludeCalc
 {
-    public class MinaCalc
+    /// <summary>
+    /// Difficulty via the standalone <c>msd</c> tool, one process per chart.
+    /// Accurate (it is Etterna's own C++), but it needs a native binary built
+    /// for each platform you want to run the overlay on.
+    /// </summary>
+    public class MinaCalc : IDifficultyCalculator
     {
         /// <summary>
         /// Generous, because this now bounds the whole exchange rather than just
@@ -22,6 +27,79 @@ namespace MinterludeCalc
         }
 
         /// <summary>
+        /// The bundled tool's path for the OS this is currently running on,
+        /// relative to the app's own directory: <c>Tools/win-x64/msd.exe</c> on
+        /// Windows, <c>Tools/linux-x64/msd</c> on Linux. Only those two
+        /// platforms ship a bundled build.
+        /// </summary>
+        public static string DefaultToolPath()
+        {
+            if (OperatingSystem.IsWindows())
+                return Path.Combine("Tools", "win-x64", "msd.exe");
+
+            if (OperatingSystem.IsLinux())
+                return Path.Combine("Tools", "linux-x64", "msd");
+
+            throw new PlatformNotSupportedException(
+                "No bundled msd build for this OS. MinterludeCalc ships standalone " +
+                "MinaCalc builds for Windows (Tools/win-x64/msd.exe) and Linux " +
+                "(Tools/linux-x64/msd) only; pass an explicit path to a build you " +
+                "compiled yourself for anything else.");
+        }
+
+        /// <summary>
+        /// Resolves a relative tool path against the working directory first (so
+        /// a deliberate override still wins), then against the directory the app
+        /// was deployed to. The build drops the tool at Tools/&lt;rid&gt;/msd(.exe)
+        /// next to the built app, which is not the working directory when it's
+        /// launched with `dotnet run`. Falls back to the path as given so a
+        /// genuinely missing tool still reports the path that was asked for.
+        /// </summary>
+        private static string ResolveToolPath(string msdPath)
+        {
+            string resolved;
+
+            if (Path.IsPathRooted(msdPath) || File.Exists(msdPath))
+            {
+                resolved = msdPath;
+            }
+            else
+            {
+                string besideApp = Path.Combine(AppContext.BaseDirectory, msdPath);
+                resolved = File.Exists(besideApp) ? besideApp : msdPath;
+            }
+
+            // A zip extracted on Linux/macOS does not necessarily preserve the
+            // executable bit, and .NET's Process.Start won't set it for you -
+            // it'll just fail with "Permission denied". Fix that up once,
+            // best-effort, rather than making every user chmod it by hand.
+            if (!OperatingSystem.IsWindows() && File.Exists(resolved))
+            {
+                TryMarkExecutable(resolved);
+            }
+
+            return resolved;
+        }
+
+        private static void TryMarkExecutable(string path)
+        {
+            try
+            {
+                const UnixFileMode executableBits =
+                    UnixFileMode.UserExecute | UnixFileMode.GroupExecute | UnixFileMode.OtherExecute;
+
+                UnixFileMode mode = File.GetUnixFileMode(path);
+                if ((mode & executableBits) != executableBits)
+                    File.SetUnixFileMode(path, mode | executableBits);
+            }
+            catch
+            {
+                // Best-effort: if this fails, Process.Start below will surface
+                // a clear "Permission denied" instead, which is diagnosable.
+            }
+        }
+
+        /// <summary>
         /// Runs the standalone msd tool against the given notes.
         /// </summary>
         /// <param name="goal">
@@ -31,8 +109,10 @@ namespace MinterludeCalc
         /// </param>
         public Dictionary<string, double> Calculate(List<MsdNote> notes, double goal = 0.93, int keys = 4)
         {
-            if (!File.Exists(_msdPath))
-                throw new FileNotFoundException($"MSD binary not found at '{_msdPath}'.");
+            string msdPath = ResolveToolPath(_msdPath);
+
+            if (!File.Exists(msdPath))
+                throw new FileNotFoundException($"MSD binary not found at '{msdPath}' (requested: '{_msdPath}').");
 
             string json = JsonSerializer.Serialize(notes);
 
@@ -40,7 +120,7 @@ namespace MinterludeCalc
             {
                 StartInfo = new ProcessStartInfo
                 {
-                    FileName = _msdPath,
+                    FileName = msdPath,
                     Arguments = $"--goal {goal.ToString(System.Globalization.CultureInfo.InvariantCulture)} --keys {keys}",
                     UseShellExecute = false,
                     RedirectStandardInput = true,

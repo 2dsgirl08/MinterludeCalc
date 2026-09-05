@@ -19,6 +19,16 @@ namespace MinterludeCalc
         };
 
         /// <summary>
+        /// The key msd uses for the combined number, alongside the 7 above. Not
+        /// part of <see cref="SkillsetNames"/> because it's derived from them
+        /// rather than aggregated with them.
+        /// </summary>
+        public const string OverallName = "Overall";
+
+        /// <summary>Overall first, then the 7 skillsets - the order every list in the UI uses.</summary>
+        public static IEnumerable<string> AllRatingNames() => new[] { OverallName }.Concat(SkillsetNames);
+
+        /// <summary>
         /// Aggregates a set of SSR values for one skillset (i.e. every chart PB's
         /// SSR for that skillset) into a single rating, then applies Etterna's
         /// 1.05x scale factor and clamps to [0, 100].

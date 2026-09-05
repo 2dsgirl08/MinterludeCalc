@@ -23,10 +23,13 @@
     <ProjectReference Include="..\MinterludeCalc.Core\MinterludeCalc.Core.csproj" />
   </ItemGroup>
 
-	<ItemGroup>
-		<Content Include="Tools/Msd.exe">
-			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-		</Content>
-	</ItemGroup>
+  <!-- The standalone msd builds live once at the solution root, under
+       Tools/win-x64/msd.exe and Tools/linux-x64/msd, and are copied next to
+       whichever app is built, preserving that per-platform subfolder so
+       MinaCalc.DefaultToolPath() finds the right one at runtime. Matches
+       nothing (rather than failing) if a build hasn't been dropped in yet. -->
+  <ItemGroup>
+    <None Include="..\Tools\**\*" Link="Tools\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 
 </Project>

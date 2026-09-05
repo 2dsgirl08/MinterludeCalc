@@ -33,7 +33,7 @@ namespace MinterludeCalc
         /// for where real per-play percentages (computed via ScoringEngine) are
         /// used instead of this fixed constant.
         /// </summary>
-        public const double DifficultyGoal = 0.95;
+        public const double DifficultyGoal = 0.94;
         public const int Judge = 4;
 
         /// <summary>How long to wait before retrying a chart+rate whose difficulty calculation failed.</summary>
@@ -45,8 +45,21 @@ namespace MinterludeCalc
         public readonly ChartReader ChartReader = new();
         public InterludeNativeChartReader NativeCharts { get; private set; } = null!;
         public ScoresDatabaseReader Scores { get; private set; } = null!;
-        public MinaCalc MinaCalc { get; }
+        public IDifficultyCalculator MinaCalc { get; }
         public PlayerRatingService RatingService { get; private set; } = null!;
+
+        /// <summary>Profiles and which one is active. Independent of the game, so it survives detach/reattach.</summary>
+        public ProfileStore Profiles { get; }
+
+        /// <summary>Per-play results, cached across runs. Also independent of the game.</summary>
+        public ScoreResultCache ScoreCache { get; }
+
+        /// <summary>
+        /// The most recent full computation for the active profile. Every view
+        /// except song-select difficulty reads from this rather than doing its
+        /// own pass, so they can't show numbers that disagree.
+        /// </summary>
+        public ProfileSnapshot? Snapshot { get; private set; }
 
         // Difficulty results are read on the poll thread and written from
         // whichever background thread computed them, so this needs a lock.
@@ -66,8 +79,16 @@ namespace MinterludeCalc
         public string? LastReadIssue { get; private set; }
 
         public OverlayService(string msdToolPath)
+            : this(new MinaCalc(msdToolPath))
         {
-            MinaCalc = new MinaCalc(msdToolPath);
+        }
+
+        /// <summary>Swap-in point for a different MinaCalc implementation.</summary>
+        public OverlayService(IDifficultyCalculator calculator)
+        {
+            MinaCalc = calculator;
+            Profiles = new ProfileStore();
+            ScoreCache = new ScoreResultCache(Judge);
         }
 
         /// <summary>True while the memory reader still has a live handle on Interlude.</summary>
@@ -78,7 +99,7 @@ namespace MinterludeCalc
             ChartReader.Attach();
             NativeCharts = new InterludeNativeChartReader(ChartReader.WorkingDirectory);
             Scores = new ScoresDatabaseReader(ChartReader.WorkingDirectory);
-            RatingService = new PlayerRatingService(NativeCharts, Scores, MinaCalc, Judge);
+            RatingService = new PlayerRatingService(NativeCharts, Scores, MinaCalc, Judge, ScoreCache);
 
             // Don't alert on every future new score from before this session started.
             if (Scores.DatabaseExists)
@@ -252,16 +273,72 @@ namespace MinterludeCalc
             if (latest == null)
                 return null;
 
+            // Claim the play for whoever is playing before scoring it, so a
+            // failure to score can't lose the association.
+            Profiles.RecordScore(latest.Id);
+
             return RatingService.ComputeScoreResult(latest);
         }
 
         /// <summary>
-        /// Full player-rating recompute. Expensive (rescoring every replay in
-        /// the library) - run this on a background thread, not the UI/poll loop.
+        /// Full player-rating recompute for the active profile. Expensive the
+        /// first time (every replay in the library gets rescored); afterwards
+        /// it's served from the on-disk cache. Run it on a background thread.
         /// </summary>
         public PlayerRatingResult ComputePlayerRating(IProgress<(int done, int total)>? progress = null)
         {
-            return RatingService.ComputePlayerRating(progress);
+            return ComputeProfileSnapshot(progress).Rating;
+        }
+
+        /// <summary>
+        /// Recomputes everything the active profile's views need and publishes
+        /// it as <see cref="Snapshot"/>. Background thread only.
+        /// </summary>
+        public ProfileSnapshot ComputeProfileSnapshot(IProgress<(int done, int total)>? progress = null)
+        {
+            string profileId = Profiles.ActiveProfileId;
+
+            var snapshot = RatingService.ComputeProfileSnapshot(
+                profileId,
+                Profiles.ActiveProfileName,
+                Profiles.FilterFor(profileId),
+                progress);
+
+            Snapshot = snapshot;
+            return snapshot;
+        }
+
+        /// <summary>
+        /// The active profile's plays on one chart, best first. Served from the
+        /// last snapshot - no rescoring, so this is safe to call from a UI.
+        /// </summary>
+        public List<PlayScoreResult> GetScoresForChart(string chartHash)
+        {
+            var snapshot = Snapshot;
+
+            if (snapshot == null || string.IsNullOrEmpty(chartHash))
+                return new List<PlayScoreResult>();
+
+            return snapshot.Chronological
+                .Where(p => p.ChartId == chartHash)
+                .OrderByDescending(p => p.Accuracy)
+                .ToList();
+        }
+
+        /// <summary>The active profile's best plays for one skillset (or Overall), from the last snapshot.</summary>
+        public List<PlayScoreResult> GetTopPlays(string skillset, int count = 25)
+        {
+            var snapshot = Snapshot;
+
+            return snapshot == null
+                ? new List<PlayScoreResult>()
+                : PlayerRatingService.TopPlays(snapshot.BestPerChart, skillset, count);
+        }
+
+        /// <summary>Chart title/artist for a hash, if the library snapshot has it.</summary>
+        public ChartInfo? LookupChart(string chartHash)
+        {
+            return ChartReader.Charts.TryGetValue(chartHash, out var chart) ? chart : null;
         }
     }
 }
